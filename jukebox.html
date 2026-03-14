@@ -1,0 +1,483 @@
+DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personal Jukebox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #000;
+            min-height: 100vh;
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        #starCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: black;
+        }
+
+        .glass {
+            background: rgba(15, 15, 25, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px rgba(168, 85, 247, 0.2) solid;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(168, 85, 247, 0.4);
+            border-radius: 10px;
+        }
+
+        input[type="file"]::file-selector-button {
+            display: none;
+        }
+
+        .hidden-ui { display: none !important; }
+        
+        .multi-play-active {
+            background-color: #22c55e !important;
+            color: white !important;
+            border-color: #16a34a !important;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+
+        .panic-btn { box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+        .panic-btn:hover { box-shadow: 0 0 25px rgba(239, 68, 68, 0.5); }
+
+        .browser-btn { box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .browser-btn:hover { box-shadow: 0 0 25px rgba(59, 130, 246, 0.5); }
+
+        .download-btn { box-shadow: 0 0 15px rgba(168, 85, 247, 0.3); }
+        .download-btn:hover { box-shadow: 0 0 25px rgba(168, 85, 247, 0.5); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <canvas id="starCanvas"></canvas>
+
+    <!-- Top Action Buttons -->
+    <div id="actionButtons" class="fixed top-4 right-4 z-[60] flex flex-wrap justify-end gap-2 hidden-ui">
+        <button onclick="downloadAsApp()" class="download-btn bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm transition-all active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            GET APP
+        </button>
+        <button onclick="toggleSearch()" class="browser-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm transition-all active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+            SEARCH
+        </button>
+        <button onclick="handlePanic()" class="panic-btn bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm transition-all active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            PANIC
+        </button>
+    </div>
+
+    <!-- Search Overlay -->
+    <div id="searchOverlay" class="fixed inset-0 z-[70] hidden-ui flex flex-col bg-black/80 backdrop-blur-xl">
+        <div class="p-4 flex justify-between items-center bg-zinc-900 border-b border-white/10">
+            <div class="flex items-center gap-4 text-zinc-400">
+                <div class="flex items-center gap-2 px-3 py-1 bg-zinc-800 rounded-lg text-xs font-mono">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    https://www.google.com
+                </div>
+            </div>
+            <button onclick="toggleSearch()" class="bg-red-500/20 hover:bg-red-500/40 text-red-400 px-4 py-1.5 rounded-lg text-xs font-bold transition-all">CLOSE</button>
+        </div>
+        <div class="flex-1 w-full h-full bg-white">
+            <iframe src="https://www.google.com/search?igu=1" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md px-4">
+        <div class="glass p-8 rounded-3xl max-w-md w-full text-center border-purple-500/30">
+            <h2 class="text-3xl font-bold mb-2">Welcome Back</h2>
+            <p class="text-slate-400 mb-6">Enter your Collection ID to access your jukebox.</p>
+            <div class="space-y-4">
+                <input id="collectionIdInput" type="text" placeholder="e.g. MyCoolBeats" class="w-full bg-black/50 border border-purple-500/30 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-center text-lg font-mono text-white">
+                <button onclick="handleLogin()" id="loginBtn" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-purple-900/40">Open Jukebox</button>
+                <p id="loginStatus" class="text-xs text-slate-500 italic">Starting secure connection...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainApp" class="max-w-4xl mx-auto hidden-ui">
+        <header class="mb-10 text-center relative">
+            <h1 class="text-4xl font-bold tracking-tight mb-2 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">My Personal Jukebox</h1>
+            <div class="flex items-center justify-center gap-2 text-slate-400">
+                <span id="displayCollectionId" class="bg-purple-500/10 px-3 py-1 rounded-full text-xs font-mono border border-purple-500/20"></span>
+                <button onclick="location.reload()" class="text-xs hover:text-white underline">Logout</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1">
+                <div class="glass p-6 rounded-2xl sticky top-8">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 text-purple-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Add Music
+                    </h2>
+                    <div class="space-y-4">
+                        <label for="audioFile" class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-purple-500/20 rounded-xl hover:border-purple-500 hover:bg-purple-500/5 cursor-pointer transition-all">
+                            <div class="flex flex-col items-center justify-center text-center px-4">
+                                <p class="text-sm text-slate-300 font-medium">Upload From Device</p>
+                                <p class="text-[10px] text-slate-500 italic">Saved to your browser cache</p>
+                            </div>
+                            <input id="audioFile" type="file" accept="audio/*" multiple class="hidden" onchange="handleFileUpload(this)">
+                        </label>
+                        
+                        <div class="relative py-2 items-center flex">
+                            <div class="flex-grow border-t border-white/10"></div>
+                            <span class="mx-2 text-[10px] text-slate-500 uppercase tracking-widest">OR SHARE A LINK</span>
+                            <div class="flex-grow border-t border-white/10"></div>
+                        </div>
+
+                        <div>
+                            <input id="songTitle" type="text" placeholder="Song Title" class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 mb-2 text-sm text-white outline-none focus:ring-1 focus:ring-purple-500">
+                            <input id="songLink" type="text" placeholder="https://file-link.com/music.mp3" class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 mb-2 text-sm text-white outline-none focus:ring-1 focus:ring-purple-500">
+                            <p class="text-[10px] text-slate-500 mb-2 px-1">Links are shared permanently with anyone using this ID.</p>
+                            <button onclick="addRemoteSong()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 rounded-lg text-sm transition-colors">Save & Share Track</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-6">
+                <div id="nowPlaying" class="glass p-8 rounded-3xl flex flex-col md:flex-row items-center gap-8 border-purple-500/30">
+                    <div id="artPlaceholder" class="w-48 h-48 bg-gradient-to-br from-purple-600 to-fuchsia-900 rounded-2xl flex items-center justify-center border border-white/10">
+                        <svg id="musicIcon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="text-white/50"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z"/></svg>
+                    </div>
+                    <div class="text-center md:text-left flex-1">
+                        <span class="text-purple-400 text-sm font-semibold uppercase tracking-widest">Now Playing</span>
+                        <h3 id="currentTitle" class="text-3xl font-bold mt-1 text-white truncate max-w-xs md:max-w-md">No Track Selected</h3>
+                        <p id="currentArtist" class="text-slate-400 text-lg">---</p>
+                        <audio id="audioElement" class="hidden"></audio>
+                        <div class="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
+                            <button onclick="prevSong()" class="text-slate-400 hover:text-purple-400"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>
+                            <button id="playBtn" onclick="togglePlay()" class="w-12 h-12 bg-purple-500 text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform">
+                                <svg id="playIcon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                <svg id="pauseIcon" class="hidden" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            </button>
+                            <button onclick="nextSong()" class="text-slate-400 hover:text-purple-400"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></button>
+                            <button id="multiPlayBtn" onclick="toggleMultiPlay()" class="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold uppercase tracking-wider">Multi-Play</button>
+                            <button onclick="stopAllSounds()" class="px-4 py-2 bg-red-500/10 text-red-400 border border-red-400/30 rounded-full text-xs font-bold uppercase">Stop All</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-2xl overflow-hidden shadow-xl">
+                    <div class="p-4 border-b border-white/10 bg-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <input id="searchInput" type="text" placeholder="Filter jukebox..." oninput="handleSearch()" class="w-full md:w-64 bg-black/40 border border-white/10 rounded-full px-4 py-1.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/50">
+                        <span id="trackCount" class="text-purple-400 text-sm bg-purple-500/10 px-3 py-1 rounded-full whitespace-nowrap">0 Tracks</span>
+                    </div>
+                    <div id="playlistContainer" class="max-h-[400px] overflow-y-auto custom-scrollbar">
+                        <div id="emptyMsg" class="p-12 text-center text-slate-500">Your jukebox is empty.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-music-player';
+
+        // --- INDEXEDDB CACHE LOGIC ---
+        const DB_NAME = 'JukeboxCache';
+        const STORE_NAME = 'musicFiles';
+        let idb = null;
+
+        const openDB = () => {
+            return new Promise((resolve) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    idb = e.target.result;
+                    resolve(idb);
+                };
+            });
+        };
+
+        const saveToCache = (id, blob) => {
+            if (!idb) return;
+            const transaction = idb.transaction(STORE_NAME, 'readwrite');
+            transaction.objectStore(STORE_NAME).put({ id, data: blob });
+        };
+
+        const getFromCache = (id) => {
+            return new Promise((resolve) => {
+                if (!idb) return resolve(null);
+                const transaction = idb.transaction(STORE_NAME, 'readonly');
+                const request = transaction.objectStore(STORE_NAME).get(id);
+                request.onsuccess = () => resolve(request.result ? request.result.data : null);
+                request.onerror = () => resolve(null);
+            });
+        };
+
+        const removeFromCache = (id) => {
+            if (!idb) return;
+            const transaction = idb.transaction(STORE_NAME, 'readwrite');
+            transaction.objectStore(STORE_NAME).delete(id);
+        };
+
+        // --- APP STATE ---
+        let playlist = [];
+        let currentIndex = -1;
+        let searchQuery = "";
+        let user = null;
+        let currentCollectionId = "";
+        let isMultiPlayEnabled = false;
+        let activeAudioNodes = [];
+        let activeBlobUrls = new Map();
+        let uploadQueue = [];
+        let isUploading = false;
+
+        const audio = document.getElementById('audioElement');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const container = document.getElementById('playlistContainer');
+        const countLabel = document.getElementById('trackCount');
+        const mainApp = document.getElementById('mainApp');
+        const loginOverlay = document.getElementById('loginOverlay');
+        const actionButtons = document.getElementById('actionButtons');
+
+        // Star Background
+        const canvas = document.getElementById('starCanvas');
+        const ctx = canvas.getContext('2d');
+        let stars = [];
+        const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initStars(); };
+        const initStars = () => {
+            stars = [];
+            for(let i=0; i<200; i++) stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: Math.random()*2, speed: Math.random()*0.5+0.1 });
+        };
+        const animate = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.6)';
+            stars.forEach(s => {
+                s.y -= s.speed; if(s.y < 0) s.y = canvas.height;
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+            });
+            requestAnimationFrame(animate);
+        };
+        window.addEventListener('resize', resize);
+        resize(); animate();
+
+        // Utilities
+        window.handlePanic = () => { window.location.href = "https://login.i-ready.com/"; };
+        window.toggleSearch = () => document.getElementById('searchOverlay').classList.toggle('hidden-ui');
+        window.downloadAsApp = () => {
+            const htmlContent = document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'MyJukeboxApp.html';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
+        };
+
+        // Auth
+        const initAuth = async () => {
+            await openDB();
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+            else await signInAnonymously(auth);
+        };
+        onAuthStateChanged(auth, (u) => { user = u; });
+        initAuth();
+
+        window.handleLogin = async () => {
+            if (!user) return;
+            const id = document.getElementById('collectionIdInput').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            if (!id) return;
+            currentCollectionId = id;
+            document.getElementById('displayCollectionId').innerText = `@${id}`;
+            loginOverlay.classList.add('hidden-ui');
+            mainApp.classList.remove('hidden-ui');
+            actionButtons.classList.remove('hidden-ui');
+            setupListener(id);
+        };
+
+        const setupListener = (id) => {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'collections', id);
+            onSnapshot(docRef, async (snap) => {
+                const cloudData = snap.exists() ? (snap.data().songs || []) : [];
+                const updatedPlaylist = [];
+                for (const cloudSong of cloudData) {
+                    if (!cloudSong.url) {
+                        const cachedBlob = await getFromCache(cloudSong.id);
+                        if (cachedBlob) {
+                            if (activeBlobUrls.has(cloudSong.id)) URL.revokeObjectURL(activeBlobUrls.get(cloudSong.id));
+                            const newUrl = URL.createObjectURL(cachedBlob);
+                            activeBlobUrls.set(cloudSong.id, newUrl);
+                            updatedPlaylist.push({ ...cloudSong, url: newUrl });
+                        } else {
+                            updatedPlaylist.push({ ...cloudSong, url: null });
+                        }
+                    } else {
+                        updatedPlaylist.push(cloudSong);
+                    }
+                }
+                playlist = updatedPlaylist;
+                renderPlaylist();
+            });
+        };
+
+        // Song Handling with Queue to prevent overwriting
+        const processQueue = async () => {
+            if (isUploading || uploadQueue.length === 0) return;
+            isUploading = true;
+            const song = uploadQueue.shift();
+            
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'collections', currentCollectionId);
+                const isBlob = activeBlobUrls.has(song.id);
+                const songData = { 
+                    id: song.id, 
+                    title: song.title, 
+                    artist: song.artist, 
+                    url: isBlob ? null : song.url 
+                };
+
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    await updateDoc(docRef, { songs: arrayUnion(songData) });
+                } else {
+                    await setDoc(docRef, { songs: [songData] });
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+            }
+
+            isUploading = false;
+            processQueue();
+        };
+
+        window.handleFileUpload = (input) => {
+            Array.from(input.files).forEach(file => {
+                const id = Math.random().toString(36).substr(2, 9);
+                const url = URL.createObjectURL(file);
+                activeBlobUrls.set(id, url);
+                saveToCache(id, file);
+                
+                uploadQueue.push({ id, title: file.name.replace(/\.[^/.]+$/, ""), artist: "Local Upload", url });
+            });
+            input.value = '';
+            processQueue();
+        };
+
+        window.addRemoteSong = () => {
+            const title = document.getElementById('songTitle').value.trim();
+            const url = document.getElementById('songLink').value.trim();
+            if (!title || !url) return;
+            uploadQueue.push({ id: Math.random().toString(36).substr(2, 9), title, artist: "Shared Link", url });
+            document.getElementById('songTitle').value = '';
+            document.getElementById('songLink').value = '';
+            processQueue();
+        };
+
+        window.togglePlay = () => audio.src && (audio.paused ? (audio.play(), showPause()) : (audio.pause(), showPlay()));
+        const showPlay = () => { playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); };
+        const showPause = () => { playIcon.classList.add('hidden'); pauseIcon.classList.remove('hidden'); };
+
+        window.playSong = (idx) => {
+            const song = playlist[idx];
+            if (!song || !song.url) return;
+            if (isMultiPlayEnabled) {
+                const n = new Audio(song.url); n.play(); activeAudioNodes.push(n);
+                n.onended = () => n.remove();
+            } else {
+                currentIndex = idx;
+                audio.src = song.url; audio.play(); showPause();
+                document.getElementById('currentTitle').innerText = song.title;
+                document.getElementById('currentArtist').innerText = song.artist;
+            }
+            renderPlaylist();
+        };
+
+        window.removeSong = async (id, event) => {
+            event.stopPropagation();
+            const song = playlist.find(s => s.id === id);
+            if (!song) return;
+            
+            removeFromCache(id);
+            if (activeBlobUrls.has(id)) {
+                URL.revokeObjectURL(activeBlobUrls.get(id));
+                activeBlobUrls.delete(id);
+            }
+
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'collections', currentCollectionId);
+            await updateDoc(docRef, { 
+                songs: arrayRemove({ id: song.id, title: song.title, artist: song.artist, url: song.url && !song.url.startsWith('blob:') ? song.url : null }) 
+            });
+        };
+
+        window.nextSong = () => playlist.length && playSong((currentIndex + 1) % playlist.length);
+        window.prevSong = () => playlist.length && playSong((currentIndex - 1 + playlist.length) % playlist.length);
+        window.stopAllSounds = () => { audio.pause(); activeAudioNodes.forEach(n => n.pause()); activeAudioNodes = []; showPlay(); };
+        window.toggleMultiPlay = () => { isMultiPlayEnabled = !isMultiPlayEnabled; document.getElementById('multiPlayBtn').classList.toggle('multi-play-active', isMultiPlayEnabled); };
+        window.handleSearch = () => { searchQuery = document.getElementById('searchInput').value.toLowerCase(); renderPlaylist(); };
+
+        const renderPlaylist = () => {
+            const filtered = playlist.filter(s => s.title.toLowerCase().includes(searchQuery));
+            countLabel.innerText = `${playlist.length} Tracks`;
+            container.innerHTML = filtered.length ? '' : '<div class="p-8 text-center text-slate-500 text-sm">Your playlist is empty.</div>';
+            
+            filtered.forEach(s => {
+                const idx = playlist.indexOf(s);
+                const isActive = currentIndex === idx;
+                const canPlay = !!s.url;
+                
+                const div = document.createElement('div');
+                div.className = `p-4 flex items-center gap-4 border-b border-white/5 ${isActive ? 'bg-purple-500/10' : ''} ${canPlay ? 'cursor-pointer hover:bg-white/5' : 'opacity-60 cursor-not-allowed'}`;
+                if (canPlay) div.onclick = () => playSong(idx);
+                
+                div.innerHTML = `
+                    <div class="w-4 text-xs ${isActive ? 'text-purple-400' : 'text-slate-600'}">${canPlay ? '▶' : '✕'}</div>
+                    <div class="flex-1 truncate">
+                        <div class="${isActive ? 'text-purple-300' : 'text-white'} font-medium text-sm">${s.title}</div>
+                        <div class="text-[10px] text-slate-500">${s.artist} ${!canPlay ? ' (Not found in cache)' : ''}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${canPlay ? `
+                            <a href="${s.url}" download="${s.title}.mp3" onclick="event.stopPropagation()" class="p-2 text-slate-400 hover:text-green-400 transition-colors" title="Download">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            </a>
+                        ` : ''}
+                        <button onclick="removeSong('${s.id}', event)" class="p-2 text-slate-600 hover:text-red-400 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        audio.onended = nextSong;
+    </script>
+</body>
+</html>
